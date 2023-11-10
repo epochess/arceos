@@ -29,6 +29,11 @@ pub mod config {
     pub use axconfig::*;
 }
 
+/// random
+pub mod rng {
+    pub use axhal::random::*;
+}
+
 /// System operations.
 pub mod sys {
     define_api! {
