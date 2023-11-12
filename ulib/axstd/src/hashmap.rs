@@ -2,9 +2,7 @@ use arceos_api::rng::random;
 // #[cfg(test)]
 // mod tests;
 
-// use self::Entry::*;
 use hashbrown::hash_map as base;
-// use self::Entry::*;
 
 use core::borrow::Borrow;
 // use crate::cell::Cell;
