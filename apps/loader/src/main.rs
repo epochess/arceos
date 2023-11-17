@@ -40,12 +40,13 @@ fn main() {
 
     let mut base = 0;
     for i in 0..2 {
-        println!("load app {i}:");
-        println!("app len: {}", header.app_len[i]);
-        
         let apps_start = (header.app0_start + base) as *const u8;
-        let app_size = header.app_len[i];
+        let app_size = header.app_len[i];        
+        
+        println!("load app {i}:");
+        println!("app len: {}", app_size);
         println!("{:#x}", header.app0_start + base);
+        
         let code = unsafe { core::slice::from_raw_parts(apps_start, app_size) };
         println!("content: {:?}, address: [{:?}]", code, code.as_ptr());
         
