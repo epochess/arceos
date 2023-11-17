@@ -1,57 +1,36 @@
 #![cfg_attr(feature = "axstd", no_std)]
 #![cfg_attr(feature = "axstd", no_main)]
 #![feature(asm_const)]
+
+#[macro_use]
 #[cfg(feature = "axstd")]
-use axstd::println;
+extern crate axstd as std;
+
+mod abi;
+mod parse;
+
+use parse::Header;
+use abi::*;
+
 const PLASH_START: usize = 0x22000000;
-
-#[repr(C)]
-struct Header<const APP_NUM: usize> {
-    app0_start: usize,
-    app_len: [usize; APP_NUM],
-}
-
-impl<const APP_NUM: usize> Header<APP_NUM> {
-    fn new(start: usize) -> Self {
-        Header {
-            app0_start: start + core::mem::size_of::<usize>() * (APP_NUM),
-            app_len: [0usize; APP_NUM],
-        }
-    }
-
-    fn get_app_lens(start: usize) -> Self {
-        let mut header = Self::new(start);
-        let mut base = 0;
-        const LEN: usize = core::mem::size_of::<usize>();
-        for i in 0..APP_NUM {
-            let bytes = unsafe { core::slice::from_raw_parts((start + base) as *const u8 , LEN) };
-            header.app_len[i] = usize::from_be_bytes(bytes.try_into().unwrap());
-            base += LEN;
-        }
-        header
-    }
-}
 
 #[cfg_attr(feature = "axstd", no_mangle)]
 fn main() {
-    let header = Header::<2>::get_app_lens(PLASH_START);
+    let header = Header::<2, PLASH_START>::get_app_lens();
 
     println!("Load payload ...");
 
-    let mut base = 0;
     for i in 0..2 {
-        let apps_start = (header.app0_start + base) as *const u8;
-        let app_size = header.app_len[i];        
+        let apps_start = header.app_start(i) as *const u8;
+        let app_size = header.app_len(i);
         
         println!("load app {i}:");
         println!("app len: {}", app_size);
-        println!("{:#x}", header.app0_start + base);
+        println!("{:#x}", header.app_start(i));
         
         let code = unsafe { core::slice::from_raw_parts(apps_start, app_size) };
         println!("content: {:?}, address: [{:?}]", code, code.as_ptr());
         
-        base += app_size;
-
         // app running aspace
         // SBI(0x80000000) -> App <- Kernel(0x80200000)
         // 0xffff_ffc0_0000_0000
@@ -65,12 +44,30 @@ fn main() {
         println!("run code {:?}; address [{:?}]", run_code, run_code.as_ptr());
 
         println!("Execute app ...");
+        register_abi(SYS_HELLO, abi_hello as usize);
+        register_abi(SYS_PUTCHAR, abi_putchar as usize);
+        register_abi(SYS_TERMINATE, abi_terminate as usize);
+
+        println!("Execute app ...");
+        let arg0: u8 = b'A';
+    
         // execute app
-        
         unsafe { core::arch::asm!("
+            li      t0, {abi_num}
+            slli    t0, t0, 3
+            la      t1, {abi_table}
+            add     t1, t1, t0
+            ld      t1, (t1)
+            jalr    t1
             li      t2, {run_start}
-            jalr    t2",
+            jalr    t2
+            j       .",
             run_start = const RUN_START,
+            abi_table = sym ABI_TABLE,
+            abi_num = const SYS_TERMINATE,
+            // abi_num = const SYS_HELLO,
+            // abi_num = const SYS_PUTCHAR,
+            in("a0") arg0,
         )}
     }
 
