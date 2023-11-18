@@ -1,4 +1,4 @@
-use crate::println;
+#![allow(unused)]
 
 pub const SYS_HELLO: usize = 1;
 pub const SYS_PUTCHAR: usize = 2;

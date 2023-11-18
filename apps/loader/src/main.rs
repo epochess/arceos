@@ -1,8 +1,10 @@
 #![cfg_attr(feature = "axstd", no_std)]
 #![cfg_attr(feature = "axstd", no_main)]
 #![feature(asm_const)] 
+
+#[macro_use]
 #[cfg(feature = "axstd")]
-use axstd::println;
+extern crate axstd as std;
 
 mod abi;
 use abi::*;
@@ -13,11 +15,11 @@ const PLASH_START: usize = 0x22000000;
 fn main() {
     let apps_start = PLASH_START as *const u8;
     // Dangerous!!! We need to get accurate size of apps.
-    let apps_size = 32; 
+    let apps_size = 20; 
     println!("Load payload ...");
 
-    let code = unsafe { core::slice::from_raw_parts(apps_start, apps_size) };
-    println!("content: {:#x}", bytes_to_usize(&code[..8]));
+    // let code = unsafe { core::slice::from_raw_parts(apps_start, apps_size) };
+    // println!("content: {:#x}", bytes_to_usize(&code[..8]));
 
     let load_code = unsafe { core::slice::from_raw_parts(apps_start, apps_size) };
     println!(
@@ -40,33 +42,21 @@ fn main() {
     println!("run code {:?}; address [{:?}]", run_code, run_code.as_ptr());
 
     println!("Execute app ...");
-    // execute app
+    // // execute app
     register_abi(SYS_HELLO, abi_hello as usize);
     register_abi(SYS_PUTCHAR, abi_putchar as usize);
 
-    println!("Execute app ...");
-    let arg0: u8 = b'A';
-
     // execute app
     unsafe { core::arch::asm!("
-        li      t0, {abi_num}
-        slli    t0, t0, 3
-        la      t1, {abi_table}
-        add     t1, t1, t0
-        ld      t1, (t1)
-        jalr    t1
+        la      a7, {abi_table}
         li      t2, {run_start}
-        jalr    t2
-        j       .",
+        jalr    t2",
         run_start = const RUN_START,
         abi_table = sym ABI_TABLE,
-        //abi_num = const SYS_HELLO,
-        abi_num = const SYS_PUTCHAR,
-        in("a0") arg0,
     )}
 }
 
-#[inline]
-fn bytes_to_usize(bytes: &[u8]) -> usize {
-    usize::from_be_bytes(bytes.try_into().unwrap())
-}
+// #[inline]
+// fn bytes_to_usize(bytes: &[u8]) -> usize {
+//     usize::from_be_bytes(bytes.try_into().unwrap())
+// }
