@@ -19,3 +19,12 @@ pub fn abi_putchar(c: char) {
 pub fn abi_terminate() -> ! {
     arceos_api::sys::ax_terminate()
 }
+
+// pub fn abi_call(abi_num: usize, arg: usize) {
+//     match abi_num {
+//         SYS_HELLO       => abi_hello(),
+//         SYS_PUTCHAR     => abi_putchar(arg as u8 as char),
+//         SYS_TERMINATE   => abi_terminate(),
+//         _               => panic!("unknow abi call"),
+//     }
+// }

@@ -13,14 +13,16 @@ use parse::Header;
 use abi::*;
 
 const PLASH_START: usize = 0x22000000;
+const APP_NUM: usize = 1;
 
 #[cfg_attr(feature = "axstd", no_mangle)]
 fn main() {
-    let header = Header::<2, PLASH_START>::get_app_lens();
+
+    let header = Header::<APP_NUM, PLASH_START>::get_app_lens();
 
     println!("Load payload ...");
 
-    for i in 0..2 {
+    for i in 0..APP_NUM {
         let apps_start = header.app_start(i) as *const u8;
         let app_size = header.app_len(i);
         
@@ -43,32 +45,23 @@ fn main() {
 
         println!("run code {:?}; address [{:?}]", run_code, run_code.as_ptr());
 
-        println!("Execute app ...");
         register_abi(SYS_HELLO, abi_hello as usize);
         register_abi(SYS_PUTCHAR, abi_putchar as usize);
         register_abi(SYS_TERMINATE, abi_terminate as usize);
 
-        println!("Execute app ...");
-        let arg0: u8 = b'A';
-    
         // execute app
+        println!("Execute app ...");
+
         unsafe { core::arch::asm!("
-            li      t0, {abi_num}
-            slli    t0, t0, 3
-            la      t1, {abi_table}
-            add     t1, t1, t0
-            ld      t1, (t1)
-            jalr    t1
+            la      a0, {abi_table}
             li      t2, {run_start}
-            jalr    t2
-            j       .",
+            jalr    t2",
+            // j       .",
             run_start = const RUN_START,
             abi_table = sym ABI_TABLE,
-            abi_num = const SYS_TERMINATE,
-            // abi_num = const SYS_HELLO,
-            // abi_num = const SYS_PUTCHAR,
-            in("a0") arg0,
         )}
+
+        unsafe { println!("{:?}", ABI_TABLE.as_ptr()) };
     }
 
     // println!("content: {:?}", code);
