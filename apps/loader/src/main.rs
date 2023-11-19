@@ -7,53 +7,70 @@
 extern crate axstd as std;
 
 mod abi;
+mod app_page_table;
+mod parse;
+
+use app_page_table::*;
 use abi::*;
+use parse::Header;
 
 const PLASH_START: usize = 0x22000000;
+const APP_NUM: usize = 1;
+const RUN_START: usize = 0x4010_0000;
 
 #[cfg_attr(feature = "axstd", no_mangle)]
 fn main() {
-    let apps_start = PLASH_START as *const u8;
-    // Dangerous!!! We need to get accurate size of apps.
-    let apps_size = 20; 
+    // switch aspace from kernel to app
+    unsafe { init_app_page_table(); }
+    unsafe { switch_app_aspace(); }
+    
+    let header = Header::<APP_NUM, PLASH_START>::get_app_lens();
+
     println!("Load payload ...");
 
-    // let code = unsafe { core::slice::from_raw_parts(apps_start, apps_size) };
-    // println!("content: {:#x}", bytes_to_usize(&code[..8]));
+    for i in 0..APP_NUM {
+        let apps_start = header.app_start(i) as *const u8;
+        let app_size = header.app_len(i);
+        
+        println!("load app {i}:");
+        println!("app len: {}", app_size);
+        println!("{:#x}", header.app_start(i));
+        
+        let code = unsafe { 
+            core::slice::from_raw_parts(apps_start, app_size) 
+        };
+        
+        // println!("content: {:?}, address: [{:?}]", code, code.as_ptr());
+        
+        // app running aspace
+        // SBI(0x80000000) -> App <- Kernel(0x80200000)
+        // 0xffff_ffc0_0000_0000
 
-    let load_code = unsafe { core::slice::from_raw_parts(apps_start, apps_size) };
-    println!(
-        "load code {:?}; address [{:?}]",
-        load_code,
-        load_code.as_ptr()
-    );
+        let run_code = unsafe {
+            core::slice::from_raw_parts_mut(RUN_START as *mut u8, app_size)
+        };
+        
+        run_code.copy_from_slice(code);
 
-    // app running aspace
-    // SBI(0x80000000) -> App <- Kernel(0x80200000)
-    // 0xffff_ffc0_0000_0000
+        println!("run code {:?}; address [{:?}]", run_code, run_code.as_ptr());
 
-    const RUN_START: usize = 0xffff_ffc0_8010_0000;
-    
-    let run_code = unsafe { 
-        core::slice::from_raw_parts_mut(RUN_START as *mut u8, apps_size) 
-    };
-    run_code.copy_from_slice(load_code);
-    
-    println!("run code {:?}; address [{:?}]", run_code, run_code.as_ptr());
+        register_abi(SYS_HELLO, abi_hello as usize);
+        register_abi(SYS_PUTCHAR, abi_putchar as usize);
+        register_abi(SYS_TERMINATE, abi_terminate as usize);
 
-    println!("Execute app ...");
-    // // execute app
-    register_abi(SYS_HELLO, abi_hello as usize);
-    register_abi(SYS_PUTCHAR, abi_putchar as usize);
+        // execute app
+        println!("Execute app ...");
 
-    // execute app
-    unsafe { core::arch::asm!("
-        la      a7, {abi_table}
-        li      t2, {run_start}
-        jalr    t2",
-        run_start = const RUN_START,
-        abi_table = sym ABI_TABLE,
-    )}
+        unsafe { core::arch::asm!("
+            la      a0, {abi_table}
+            li      t2, {run_start}
+            jalr    t2",
+            run_start = const RUN_START,
+            abi_table = sym ABI_TABLE,
+        )}
+    }
+
+    println!("Load payload ok!");
 }
 
 // #[inline]
